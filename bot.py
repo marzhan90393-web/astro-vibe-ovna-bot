@@ -111,8 +111,8 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Напиши свою дату рождения, и я сделаю твой прогноз на месяц")
         context.user_data["rezhim"] = "prognoz"
         return
-       moon_str = ""
-       try:
+        moon_str = ""
+        try:
         m = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{4}),\s*(\d{1,2}):(\d{1,2})", text)
         if m:
             d, mo, y, h, mi = map(int, m.groups())
