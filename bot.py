@@ -7,6 +7,7 @@ import threading
 from flask import Flask
 import random
 import swisseph as swe
+import re
 
 TOKEN_TELEGRAM = os.environ.get("TOKEN")
 KEY_GROQ = os.environ.get("GROQ_API_KEY")
@@ -103,6 +104,15 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Напиши свою дату рождения, и я сделаю твой прогноз на месяц")
         context.user_data["rezhim"] = "prognoz"
         return
+        moon_str = ""
+    try:
+        m = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{4}).*?(\d{1,2}):(\d{2})", text)
+        if m:
+            d, mo, y, h, mi = map(int, m.groups())
+            luna = get_moon_sign(d, mo, y, h, mi)
+            moon_str = f" ВНИМАНИЕ: Точная Луна человека - в {luna}. Не меняй этот знак, используй именно его! "
+    except:
+        pass
     if text == "🃏 Карта дня":
         prompt = "Ты опытный астролог. Сделай карту дня: короткое послание, совет дня, удачный цвет и цифра дня. Тепло и вдохновляюще. Не повторяй банальные фразы."
     elif context.user_data.get("rezhim") == "sovmestimost":
@@ -111,7 +121,7 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         segodnya = datetime.now().strftime("%d.%m.%Y")
         prompt = f"Ты астролог. Сегодня {segodnya}. Сделай прогноз на ближайший месяц для человека, рожденного {text}. Блоки: любовь, деньги, работа, здоровье. Дай 3 конкретных совета от астролога."
     else:
-        prompt = f"Ты астролог. Сделай полный астрологический разбор для человека, рожденного {text}. Блоки: 1. Солнечный знак и характер 2. Луна и эмоции 3. Асцендент и как видят другие 4. Любовь 5. Деньги и работа 6. Прогноз на месяц и 3 совета от астролога."
+        prompt = f"Ты астролог. {moon_str} Сделай полный астрологический разбор для человека, рожденного {text}. Блоки: 1. Солнечный знак и характер 2. Луна и эмоции 3. Асцендент и как видят другие 4. Любовь 5. Деньги и работа 6. Прогноз на месяц и 3 совета от астролога."
     await update.message.reply_text("Смотрю твои звезды... ✨ Секундочку, астролог уже в деле")
     try:
         otvet_ai = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=0.9)
