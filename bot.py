@@ -180,9 +180,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Ой, звёзды сегодня капризничают... Попробуй ещё раз через минутку ✨\n({e})", reply_markup=KEYBOARD)
 
 def main():
-    app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        app = Application.builder().token(BOT_TOKEN).build()
+        app.add_handler(CommandHandler("start", start))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
         port = int(os.getenv("PORT", 10000))
     def _serve():
         class H(BaseHTTPRequestHandler):
