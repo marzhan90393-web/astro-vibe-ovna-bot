@@ -78,7 +78,7 @@ async def vibes_po_znaku(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-       if text == "💫 Поддержать":
+    if text == "💫 Поддержать":
         await update.message.reply_text("Спасибо, что ты со мной! 💫✨\n\nПоддержать Астро-вайб можно тут:\nhttps://t.me/tribute/app?startapp=dUt9\n\nКаждая звёздочка от тебя помогает боту расти! 💖", reply_markup=KLAVIATURA)
         return
     if text == "🔮 Гороскоп на сегодня":
