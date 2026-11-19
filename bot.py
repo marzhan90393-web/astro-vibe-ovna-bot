@@ -88,7 +88,7 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "✨ Разбор ":
         await update.message.reply_text("Давай смотреть твою карту ✨ Напиши дату, время и город. Например: 15.05.2002, 14:30, Павлодар")
         return
-        if "Совместимость" in text:
+    if "Совместимость" in text:
         await update.message.reply_text("Напиши 2 даты. Например: Она 15.05.2002, он 21.11.1999")
         context.user_data["rezhim"] = "sovmestimost"
         return
