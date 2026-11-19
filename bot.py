@@ -44,7 +44,7 @@ async def vibes_po_znaku(update: Update, context: ContextTypes.DEFAULT_TYPE):
     stil = random.choice(stili)
     prompt = f"Ты Ovna. Сделай УНИКАЛЬНЫЙ гороскоп-вайб на сегодня {segodnya} для знака {znak}. Стиль: {stil}. ВАЖНО: Не используй банальные фразы типа 'энергия - магнит для хорошего', 'улыбайся и мир ответит'. Придумай свежий, конкретный текст только для этого знака, с учетом его характера. Формат: {znak} / Твой вайб на сегодня: [2-3 предложения только про этот знак] / Совет дня: [1 конкретный совет]"
     try:
-        otvet_ai = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.0)
+        otvet_ai = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.0)
         await query.message.reply_text(otvet_ai.choices[0].message.content + "\n\nНажми /start, чтобы выбрать другой знак ✨", reply_markup=KLAVIATURA)
     except Exception:
         await query.message.reply_text("Ой, звезды капризничают, попробуй еще раз ✨")
@@ -76,7 +76,7 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         prompt = f"Ты Ovna. Сделай полный астрологический разбор для человека, рожденного {text}. Блоки: 1. Солнечный знак и характер 2. Луна и эмоции 3. Асцендент и как видят другие 4. Любовь 5. Деньги и работа 6. Прогноз на месяц и 3 совета от Ovna."
     await update.message.reply_text("Смотрю твои звезды... ✨ Секундочку, Ovna уже в деле")
     try:
-        otvet_ai = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=0.9)
+        otvet_ai = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=0.9)
         await update.message.reply_text(otvet_ai.choices[0].message.content, reply_markup=KLAVIATURA)
     except Exception:
         await update.message.reply_text("Ой, звезды сегодня капризничают, попробуй еще раз через минуту ✨")
