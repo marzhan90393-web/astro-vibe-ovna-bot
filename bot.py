@@ -111,16 +111,16 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Напиши свою дату рождения, и я сделаю твой прогноз на месяц")
         context.user_data["rezhim"] = "prognoz"
         return
-        moon_str = ""
+       moon_str = ""
     try:
-        m = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{4}).*?(\d{1,2}):(\d{2})", text)
-    if m:
+        m = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{4}),\s*(\d{1,2}):(\d{1,2})", text)
+        if m:
             d, mo, y, h, mi = map(int, m.groups())
             luna = get_moon_sign(d, mo, y, h, mi)
             asc = get_ascendant(d, mo, y, h, mi)
-            moon_str = f" ВНИМАНИЕ: Точная Луна человека - в {luna}. Точный Асцендент человека - в {asc}. Не меняй эти знаки, используй именно их!" 
+            moon_str = f" ВНИМАНИЕ: Точная Луна {luna}, Асцендент {asc}. Учитывай это в разборе! "
     except:
-        pass
+        pass     
     if text == "🃏 Карта дня":
         prompt = "Ты опытный астролог. Сделай карту дня: короткое послание, совет дня, удачный цвет и цифра дня. Тепло и вдохновляюще. Не повторяй банальные фразы."
     elif context.user_data.get("rezhim") == "sovmestimost":
