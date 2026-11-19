@@ -31,6 +31,33 @@ def klaviatura_znakov():
 
 SYSTEM_PROMPT = "Ты опытный астролог , основательница бота Astro Vibe Ovna. Ты теплая, дерзкая, по-человечески, говоришь как подруга. Ты никогда не говоришь, что ты ИИ. Ты живой астролог . Пиши короткими абзацами, с эмодзи, без заумных терминов."
 
+def get_zodiac(day, month):  
+    if (month == 3 and day >= 21) or (month == 4 and day <= 19):
+        return "Овен"
+    if (month == 4 and day >= 20) or (month == 5 and day <= 20):
+        return "Телец"
+    if (month == 5 and day >= 21) or (month == 6 and day <= 20):
+        return "Близнецы"
+    if (month == 6 and day >= 21) or (month == 7 and day <= 22):
+        return "Рак"
+    if (month == 7 and day >= 23) or (month == 8 and day <= 22):
+        return "Лев"
+    if (month == 8 and day >= 23) or (month == 9 and day <= 22):
+        return "Дева"
+    if (month == 9 and day >= 23) or (month == 10 and day <= 22):
+        return "Весы"
+    if (month == 10 and day >= 23) or (month == 11 and day <= 21):
+        return "Скорпион"
+    if (month == 11 and day >= 22) or (month == 12 and day <= 21):
+        return "Стрелец"
+    if (month == 12 and day >= 22) or (month == 1 and day <= 19):
+        return "Козерог"
+    if (month == 1 and day >= 20) or (month == 2 and day <= 18):
+        return "Водолей"
+    return "Рыбы"
+
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Привет, я твой Астролог ✨\n\nДобро пожаловать в Astro Vibe Ovna\n\nВыбери кнопку внизу или просто напиши дату, время и город. Например:\n15.05.2002, 14:30, Павлодар", reply_markup=KLAVIATURA)
 
