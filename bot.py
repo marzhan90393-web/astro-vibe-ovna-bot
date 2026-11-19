@@ -5,6 +5,8 @@ from datetime import datetime, timezone, timedelta
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from openai import OpenAI
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
@@ -181,6 +183,14 @@ def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        port = int(os.getenv("PORT", 10000))
+    def _serve():
+        class H(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200); self.end_headers(); self.wfile.write(b"ok")
+            def log_message(self, *a): pass
+        HTTPServer(("0.0.0.0", port), H).serve_forever()
+    threading.Thread(target=_serve, daemon=True).start()
     app.run_polling()
 
 if __name__ == "__main__":
