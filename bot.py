@@ -6,6 +6,7 @@ from datetime import datetime
 import threading
 from flask import Flask
 import random
+import swisseph as swe
 
 TOKEN_TELEGRAM = os.environ.get("TOKEN")
 KEY_GROQ = os.environ.get("GROQ_API_KEY")
@@ -55,7 +56,13 @@ def get_zodiac(day, month):
     if (month == 1 and day >= 20) or (month == 2 and day <= 18):
         return "Водолей"
     return "Рыбы"
-
+def get_moon_sign(day, month, year, hour, minute):
+    hour_utc = hour - 6
+    jd = swe.julday(year, month, day, hour_utc + minute/60.0)
+    pos, _ = swe.calc_ut(jd, 1)
+    lon = pos[0]
+    znaki = ["Овен", "Телец", "Близнецы", "Рак", "Лев", "Дева", "Весы", "Скорпион", "Стрелец", "Козерог", "Водолей", "Рыбы"]
+    return znaki[int(lon // 30)]
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
