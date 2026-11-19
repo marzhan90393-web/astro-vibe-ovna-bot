@@ -112,14 +112,14 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["rezhim"] = "prognoz"
         return
        moon_str = ""
-    try:
+       try:
         m = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{4}),\s*(\d{1,2}):(\d{1,2})", text)
         if m:
             d, mo, y, h, mi = map(int, m.groups())
             luna = get_moon_sign(d, mo, y, h, mi)
             asc = get_ascendant(d, mo, y, h, mi)
             moon_str = f" ВНИМАНИЕ: Точная Луна {luna}, Асцендент {asc}. Учитывай это в разборе! "
-    except:
+      except:
         pass     
     if text == "🃏 Карта дня":
         prompt = "Ты опытный астролог. Сделай карту дня: короткое послание, совет дня, удачный цвет и цифра дня. Тепло и вдохновляюще. Не повторяй банальные фразы."
