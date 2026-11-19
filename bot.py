@@ -64,7 +64,13 @@ def get_moon_sign(day, month, year, hour, minute):
     lon = pos[0]
     znaki = ["Овен", "Телец", "Близнецы", "Рак", "Лев", "Дева", "Весы", "Скорпион", "Стрелец", "Козерог", "Водолей", "Рыбы"]
     return znaki[int(lon // 30)]
-
+def get_ascendant(day, month, year, hour, minute):
+    hour_utc = hour - 6
+    jd = swe.julday(year, month, day, hour_utc + minute/60.0)
+    cusps, ascmc = swe.houses(jd, 51.17, 71.45, b'P')
+    asc_lon = ascmc[0]
+    znaki = ["Овен", "Телец", "Близнецы", "Рак", "Лев", "Дева", "Весы", "Скорпион", "Стрелец", "Козерог", "Водолей", "Рыбы"]
+    return znaki[int(asc_lon // 30)]
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Привет, я твой Астролог ✨\n\nДобро пожаловать в Astro Vibe Ovna\n\nВыбери кнопку внизу или просто напиши дату, время и город. Например:\n15.05.2002, 14:30, Павлодар", reply_markup=KLAVIATURA)
@@ -93,7 +99,7 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
         await update.message.reply_text("Выбери свой знак ✨", reply_markup=klaviatura_znakov())
         return
-    if text == "✨ Разбор ":
+    if text == "✨ Разбор ":    context.user_data["rezhim"] = "razbor"
         await update.message.reply_text("Давай смотреть твою карту ✨ Напиши дату, время и город. Например: 15.05.2002, 14:30, Павлодар")
         return
     if "Совместимость" in text:
@@ -110,7 +116,8 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if m:
             d, mo, y, h, mi = map(int, m.groups())
             luna = get_moon_sign(d, mo, y, h, mi)
-            moon_str = f" ВНИМАНИЕ: Точная Луна человека - в {luna}. Не меняй этот знак, используй именно его! "
+                  asc = get_ascendant(d, mo, y, h, mi)
+            moon_str = f" ВНИМАНИЕ: Точная Луна человека - в {luna}. Точный Асцендент человека - в {asc}. Не меняй эти знаки, используй именно их!" 
     except:
         pass
     if text == "🃏 Карта дня":
