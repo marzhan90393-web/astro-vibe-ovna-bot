@@ -1,62 +1,93 @@
 import os
-import random
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
+from openai import OpenAI
+from datetime import datetime
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from flask import Flask
+import random
 
-def _keep_alive():
-    port = int(os.environ.get("PORT", 10000))
-    class H(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"OK")
-        def log_message(self, *a):
-            pass
-    HTTPServer(("0.0.0.0", port), H).serve_forever()
+TOKEN_TELEGRAM = os.environ.get("TOKEN")
+KEY_GROQ = os.environ.get("GROQ_API_KEY")
 
-threading.Thread(target=_keep_alive, daemon=True).start()
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+client = OpenAI(api_key=KEY_GROQ, base_url="https://api.groq.com/openai/v1")
 
-SIGNS = ["Овен ♈","Телец ♉","Близнецы ♊","Рак ♋","Лев ♌","Дева ♍","Весы ♎","Скорпион ♏","Стрелец ♐","Козерог ♑","Водолей ♒","Рыбы ♓"]
+app_flask = Flask(__name__)
+@app_flask.route('/')
+def home():
+    return "Astro Vibe Ovna работает ✨"
+def run_flask():
+    app_flask.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
 
-PREDICTIONS = [
-    "Сегодня звезды на твоей стороне! Жди приятный сюрприз от близкого человека ✨",
-    "День для смелых решений. Не бойся сказать то, что давно хотела 💫",
-    "Твоя энергия сегодня - магнит для хорошего. Улыбайся, и мир ответит тем же 🌙",
-    "Прислушайся к интуиции - она сегодня точнее любого гороскопа 🔮",
-    "Идеальный день для отдыха и заботы о себе. Ты заслужила паузу 💖",
-    "Вселенная готовит тебе встречу, которая все изменит. Будь открыта! ⭐",
-]
+ZNAKI = ["♈ Овен", "♉ Телец", "♊ Близнецы", "♋ Рак", "♌ Лев", "♍ Дева", "♎ Весы", "♏ Скорпион", "♐ Стрелец", "♑ Козерог", "♒ Водолей", "♓ Рыбы"]
+
+KLAVIATURA = ReplyKeyboardMarkup([["✨ Разбор от Ovna", "❤️ Совместимость"], ["🌙 Прогноз на месяц", "🃏 Карта дня"], ["🔮 Гороскоп на сегодня"]], resize_keyboard=True)
+
+def klaviatura_znakov():
+    knopki = []
+    for i in range(0, 12, 3):
+        knopki.append([InlineKeyboardButton(z, callback_data=f"znak:{z}") for z in ZNAKI[i:i+3]])
+    return InlineKeyboardMarkup(knopki)
+
+SYSTEM_PROMPT = "Ты астролог Ovna, основательница бота Astro Vibe Ovna. Ты теплая, дерзкая, по-человечески, говоришь как подруга. Ты никогда не говоришь, что ты ИИ. Ты живой астролог Ovna. Пиши короткими абзацами, с эмодзи, без заумных терминов."
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = []
-    row = []
-    for sign in SIGNS:
-        row.append(InlineKeyboardButton(sign, callback_data=sign))
-        if len(row) == 2:
-            keyboard.append(row)
-            row = []
-    if row:
-        keyboard.append(row)
-    await update.message.reply_text(
-        "Привет! Я Astro_vibe_ovna_bot ✨🔮\n\nВыбери свой знак зодиака и я расскажу твой вайб на сегодня:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await update.message.reply_text("Привет, я Ovna ✨\n\nДобро пожаловать в Astro Vibe Ovna\n\nВыбери кнопку внизу или просто напиши дату, время и город. Например:\n15.05.2002, 14:30, Павлодар", reply_markup=KLAVIATURA)
 
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def vibes_po_znaku(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    sign = query.data
-    text = random.choice(PREDICTIONS)
-    await query.edit_message_text(f"{sign}\n\nТвой вайб на сегодня:\n\n{text}\n\nНажми /start, чтобы выбрать другой знак ✨")
+    znak = query.data.split("znak:")[1]
+    segodnya = datetime.now().strftime("%d.%m.%Y")
+    await query.message.reply_text(f"Смотрю звезды для {znak} на {segodnya}... ✨")
+    stili = ["дерзкий и мотивирующий", "нежный и поддерживающий", "смелый и прямолинейный", "легкий и с юмором"]
+    stil = random.choice(stili)
+    prompt = f"Ты Ovna. Сделай УНИКАЛЬНЫЙ гороскоп-вайб на сегодня {segodnya} для знака {znak}. Стиль: {stil}. ВАЖНО: Не используй банальные фразы типа 'энергия - магнит для хорошего', 'улыбайся и мир ответит'. Придумай свежий, конкретный текст только для этого знака, с учетом его характера. Формат: {znak} / Твой вайб на сегодня: [2-3 предложения только про этот знак] / Совет дня: [1 конкретный совет]"
+    try:
+        otvet_ai = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=1.0)
+        await query.message.reply_text(otvet_ai.choices[0].message.content + "\n\nНажми /start, чтобы выбрать другой знак ✨", reply_markup=KLAVIATURA)
+    except Exception:
+        await query.message.reply_text("Ой, звезды капризничают, попробуй еще раз ✨")
+
+async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    if text == "🔮 Гороскоп на сегодня":
+        await update.message.reply_text("Выбери свой знак ✨", reply_markup=klaviatura_znakov())
+        return
+    if text == "✨ Разбор от Ovna":
+        await update.message.reply_text("Давай смотреть твою карту ✨ Напиши дату, время и город. Например: 15.05.2002, 14:30, Павлодар")
+        return
+    if text == "❤️ Совместимость":
+        await update.message.reply_text("Напиши 2 даты. Например: Она 15.05.2002, он 21.11.1999")
+        context.user_data["rezhim"] = "sovmestimost"
+        return
+    if text == "🌙 Прогноз на месяц":
+        await update.message.reply_text("Напиши свою дату рождения, и я сделаю твой прогноз на месяц")
+        context.user_data["rezhim"] = "prognoz"
+        return
+    if text == "🃏 Карта дня":
+        prompt = "Ты Ovna. Сделай карту дня: короткое послание, совет дня, удачный цвет и цифра дня. Тепло и вдохновляюще. Не повторяй банальные фразы."
+    elif context.user_data.get("rezhim") == "sovmestimost":
+        prompt = f"Ты Ovna. Сделай разбор совместимости пары по датам: {text}. Блоки: страсть, конфликты, деньги, перспектива, совместимость в процентах, совет паре от Ovna."
+    elif context.user_data.get("rezhim") == "prognoz":
+        segodnya = datetime.now().strftime("%d.%m.%Y")
+        prompt = f"Ты Ovna. Сегодня {segodnya}. Сделай прогноз на ближайший месяц для человека, рожденного {text}. Блоки: любовь, деньги, работа, здоровье. Дай 3 конкретных совета от Ovna."
+    else:
+        prompt = f"Ты Ovna. Сделай полный астрологический разбор для человека, рожденного {text}. Блоки: 1. Солнечный знак и характер 2. Луна и эмоции 3. Асцендент и как видят другие 4. Любовь 5. Деньги и работа 6. Прогноз на месяц и 3 совета от Ovna."
+    await update.message.reply_text("Смотрю твои звезды... ✨ Секундочку, Ovna уже в деле")
+    try:
+        otvet_ai = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}], temperature=0.9)
+        await update.message.reply_text(otvet_ai.choices[0].message.content, reply_markup=KLAVIATURA)
+    except Exception:
+        await update.message.reply_text("Ой, звезды сегодня капризничают, попробуй еще раз через минуту ✨")
 
 def main():
-    token = os.environ.get("BOT_TOKEN")
-    app = Application.builder().token(token).build()
+    threading.Thread(target=run_flask, daemon=True).start()
+    app = Application.builder().token(TOKEN_TELEGRAM).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button))
-    print("Bot started...")
+    app.add_handler(CallbackQueryHandler(vibes_po_znaku, pattern="^znak:"))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, otvet))
+    print("Astro Vibe Ovna запущена...")
     app.run_polling()
 
 if __name__ == "__main__":
