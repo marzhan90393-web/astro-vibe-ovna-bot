@@ -11,61 +11,29 @@ KEYBOARD = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-def get_astro(text):
-    return text
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Привет! Я твой астролог. Выбери режим:",
-        reply_markup=KEYBOARD
-    )
+    await update.message.reply_text("Привет! Я твой астролог. Выбери режим:", reply_markup=KEYBOARD)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "Разбор":
-        rezhim = "razbor"
+        prompt = f"Ты астролог. Сделай разбор по данным: {text}, с эмодзи."
     elif text == "Совместимость":
-        rezhim = "sovmestimost"
+        prompt = f"Ты астролог. Расскажи про совместимость: {text}, с эмодзи."
     elif text == "Прогноз":
-        rezhim = "prognoz"
+        prompt = f"Ты астролог. Сделай прогноз: {text}, с эмодзи."
     elif text == "Натальная карта":
-        rezhim = "karta"
+        prompt = f"Ты астролог. Опиши натальную карту: {text}, с эмодзи."
     elif text == "Гороскоп":
-        rezhim = "goroskop"
+        prompt = f"Ты астролог. Сделай гороскоп: {text}, с эмодзи."
     else:
-        rezhim = "razbor"
-
-    astro = get_astro(text)
-
-    if rezhim == "razbor":
-        prompt = f"Ты астролог. Сделай разбор по данным: {astro}, с эмодзи."
-    elif rezhim == "sovmestimost":
-        prompt = f"Ты астролог. Расскажи про совместимость: {astro}, как помириться, перспективы, с эмодзи."
-    elif rezhim == "prognoz":
-        prompt = f"Ты астролог. Сделай прогноз: {astro}, с эмодзи."
-    elif rezhim == "karta":
-        prompt = f"Ты астролог. Опиши натальную карту: {astro}, с эмодзи."
-    elif rezhim == "goroskop":
-        prompt = f"Ты астролог. Сделай гороскоп: {astro}, с эмодзи."
-    else:
-        prompt = f"Ты астролог. Ответь: {astro}, с эмодзи."
-
+        prompt = f"Ты астролог. Ответь на вопрос: {text}, с эмодзи."
     await update.message.reply_text("Думаю...")
-
     try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        await update.message.reply_text(
-            resp.choices[0].message.content,
-            reply_markup=KEYBOARD
-        )
+        resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}])
+        await update.message.reply_text(resp.choices[0].message.content, reply_markup=KEYBOARD)
     except Exception as e:
-        await update.message.reply_text(
-            f"Ошибка: {e}",
-            reply_markup=KEYBOARD
-        )
+        await update.message.reply_text(f"Ошибка: {e}", reply_markup=KEYBOARD)
 
 def main():
     app = Application.builder().token(TOKEN).build()
