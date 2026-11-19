@@ -99,7 +99,8 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
         await update.message.reply_text("Выбери свой знак ✨", reply_markup=klaviatura_znakov())
         return
-    if text == "✨ Разбор ":    context.user_data["rezhim"] = "razbor"
+    if text == "✨ Разбор ": 
+        context.user_data["rezhim"] = "razbor"
         await update.message.reply_text("Давай смотреть твою карту ✨ Напиши дату, время и город. Например: 15.05.2002, 14:30, Павлодар")
         return
     if "Совместимость" in text:
