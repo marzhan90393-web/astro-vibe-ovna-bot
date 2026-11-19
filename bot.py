@@ -78,14 +78,18 @@ async def vibes_po_znaku(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
+       if text == "💫 Поддержать":
+        await update.message.reply_text("Спасибо, что ты со мной! 💫✨\n\nПоддержать Астро-вайб можно тут:\nhttps://t.me/tribute/app?startapp=dUt9\n\nКаждая звёздочка от тебя помогает боту расти! 💖", reply_markup=KLAVIATURA)
+        return
     if text == "🔮 Гороскоп на сегодня":
+    
         await update.message.reply_text("Выбери свой знак ✨", reply_markup=klaviatura_znakov())
         return
     if text == "✨ Разбор ":
         await update.message.reply_text("Давай смотреть твою карту ✨ Напиши дату, время и город. Например: 15.05.2002, 14:30, Павлодар")
         return
     if text == "❤️ Совместимость":
-        await update.message.reply_text("Напиши 2 даты. Например: Она 15.05.2002, он 21.11.1999")
+        await update.messageu.reply_text("Напиши 2 даты. Например: Она 15.05.2002, он 21.11.1999")
         context.user_data["rezhim"] = "sovmestimost"
         return
     if text == "🌙 Прогноз на месяц":
