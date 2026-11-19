@@ -114,7 +114,7 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         moon_str = ""
     try:
         m = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{4}).*?(\d{1,2}):(\d{2})", text)
-        if m:
+    if m:
         d, mo, y, h, mi = map(int, m.groups())
         luna = get_moon_sign(d, mo, y, h, mi)
         asc = get_ascendant(d, mo, y, h, mi)
