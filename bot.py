@@ -115,10 +115,10 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         m = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{4}).*?(\d{1,2}):(\d{2})", text)
         if m:
-            d, mo, y, h, mi = map(int, m.groups())
-            luna = get_moon_sign(d, mo, y, h, mi)
-                  asc = get_ascendant(d, mo, y, h, mi)
-            moon_str = f" ВНИМАНИЕ: Точная Луна человека - в {luna}. Точный Асцендент человека - в {asc}. Не меняй эти знаки, используй именно их!" 
+        d, mo, y, h, mi = map(int, m.groups())
+        luna = get_moon_sign(d, mo, y, h, mi)
+        asc = get_ascendant(d, mo, y, h, mi)
+        moon_str = f" ВНИМАНИЕ: Точная Луна человека - в {luna}. Точный Асцендент человека - в {asc}. Не меняй эти знаки, используй именно их!" 
     except:
         pass
     if text == "🃏 Карта дня":
