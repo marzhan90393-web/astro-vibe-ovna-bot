@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 import swisseph as swe
-from geopy.geocoders import Nominatim
+from geopy.geocoders import Nominatim, Photon
 from timezonefinder import TimezoneFinder
 
 from flask import Flask
@@ -169,12 +169,17 @@ def zodiac_sign(longitude):
 # =====================================================
 
 geolocator = Nominatim(user_agent="astro_vibe_ovna_bot")
+photon_geolocator = Photon(user_agent="astro_vibe_ovna_bot")
 tf = TimezoneFinder()
 city_cache = {}
 
 # Для городов Казахстана используем проверенные координаты
 # и часовой пояс. С 1 марта 2024 года в Казахстане действует UTC+5.
 KNOWN_CITIES = {
+    "москва": (55.7558, 37.6173, "Europe/Moscow"),
+    "moscow": (55.7558, 37.6173, "Europe/Moscow"),
+    "москва россия": (55.7558, 37.6173, "Europe/Moscow"),
+    "moscow russia": (55.7558, 37.6173, "Europe/Moscow"),
     "павлодар": (52.2873, 76.9674, "Asia/Almaty"),
     "pavlodar": (52.2873, 76.9674, "Asia/Almaty"),
     "павлодар казахстан": (52.2873, 76.9674, "Asia/Almaty"),
@@ -270,16 +275,36 @@ async def get_city_data(city):
             city_cache[normalized] = result
             return result
 
-        # 2. Если города нет в базе — ищем в интернете
+        # 2. Если города нет в локальной базе — пробуем два сервиса поиска.
+        # Photon используется первым, Nominatim — как запасной вариант.
         search_queries = [
             city,
-            f"{city}, Казахстан",
+            f"{city}, Россия",
+            f"{city}, Россия",
             f"{city}, Kazakhstan",
         ]
 
         location = None
 
         for search_query in search_queries:
+            # Сначала Photon
+            try:
+                location = await asyncio.to_thread(
+                    photon_geolocator.geocode,
+                    search_query,
+                    timeout=20,
+                )
+            except Exception as error:
+                logger.warning(
+                    "Photon не нашёл '%s': %s",
+                    search_query,
+                    error,
+                )
+
+            if location:
+                break
+
+            # Затем Nominatim
             for language in ("ru", None):
                 try:
                     kwargs = {"timeout": 20}
@@ -291,22 +316,21 @@ async def get_city_data(city):
                         search_query,
                         **kwargs,
                     )
-
-                    if location:
-                        break
-
                 except Exception as error:
                     logger.warning(
-                        "Не удалось найти город '%s': %s",
+                        "Nominatim не нашёл '%s': %s",
                         search_query,
                         error,
                     )
+
+                if location:
+                    break
 
             if location:
                 break
 
         if not location:
-            logger.warning("Город не найден: %s", city)
+            logger.warning("Город не найден ни одним сервисом: %s", city)
             return None
 
         latitude = location.latitude
