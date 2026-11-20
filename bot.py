@@ -4,6 +4,9 @@ import asyncio
 import random
 import threading
 import logging
+import sqlite3
+import difflib
+import unicodedata
 
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -64,6 +67,86 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+
+
+# =====================================================
+# ИСТОРИЯ ГОРОСКОПОВ: ОТДЕЛЬНО ДЛЯ КАЖДОГО ПОЛЬЗОВАТЕЛЯ
+# =====================================================
+
+# Если на Render подключён Persistent Disk с Mount Path /var/data,
+# база будет храниться там и переживёт перезапуски и новые деплои.
+# Без диска используется файл рядом с bot.py.
+DEFAULT_DB_DIR = "/var/data" if os.path.isdir("/var/data") else os.path.dirname(os.path.abspath(__file__))
+HOROSCOPE_DB_PATH = os.environ.get(
+    "HOROSCOPE_DB_PATH",
+    os.path.join(DEFAULT_DB_DIR, "horoscope_history.db"),
+).strip()
+
+
+def init_horoscope_db():
+    db_dir = os.path.dirname(os.path.abspath(HOROSCOPE_DB_PATH))
+    os.makedirs(db_dir, exist_ok=True)
+    with sqlite3.connect(HOROSCOPE_DB_PATH, timeout=30) as connection:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS horoscope_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                sign TEXT NOT NULL,
+                horoscope_text TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_horoscope_user_sign "
+            "ON horoscope_history(user_id, sign, created_at)"
+        )
+
+
+def get_user_horoscopes(user_id, sign):
+    with sqlite3.connect(HOROSCOPE_DB_PATH, timeout=30) as connection:
+        rows = connection.execute(
+            "SELECT horoscope_text FROM horoscope_history "
+            "WHERE user_id = ? AND sign = ? ORDER BY id DESC",
+            (str(user_id), sign),
+        ).fetchall()
+    return [row[0] for row in rows]
+
+
+def save_user_horoscope(user_id, sign, horoscope_text):
+    with sqlite3.connect(HOROSCOPE_DB_PATH, timeout=30) as connection:
+        connection.execute(
+            "INSERT INTO horoscope_history (user_id, sign, horoscope_text) "
+            "VALUES (?, ?, ?)",
+            (str(user_id), sign, horoscope_text),
+        )
+
+
+def normalize_horoscope(text):
+    text = unicodedata.normalize("NFKC", text).casefold()
+    return " ".join(
+        "".join(char if char.isalnum() else " " for char in text).split()
+    )
+
+
+def is_horoscope_repeated(new_text, previous_texts):
+    normalized_new = normalize_horoscope(new_text)
+    if not normalized_new:
+        return True
+
+    for old_text in previous_texts:
+        normalized_old = normalize_horoscope(old_text)
+        if normalized_new == normalized_old:
+            return True
+        if difflib.SequenceMatcher(
+            None, normalized_new, normalized_old
+        ).ratio() >= 0.82:
+            return True
+    return False
+
+
+init_horoscope_db()
 
 
 # =====================================================
@@ -624,44 +707,149 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ГОРОСКОП ПО ЗНАКУ
 # =====================================================
 
+def calculate_daily_transits(local_date):
+    """Рассчитывает реальные положения планет на полдень по времени Казахстана."""
+    local_noon = datetime(
+        local_date.year,
+        local_date.month,
+        local_date.day,
+        12,
+        0,
+        tzinfo=ZoneInfo("Asia/Almaty"),
+    )
+    utc_noon = local_noon.astimezone(timezone.utc)
+    decimal_hour = utc_noon.hour + utc_noon.minute / 60 + utc_noon.second / 3600
+    jd = swe.julday(
+        utc_noon.year,
+        utc_noon.month,
+        utc_noon.day,
+        decimal_hour,
+    )
+
+    positions = {}
+    for name, planet_id in PLANETS.items():
+        position, ret = swe.calc_ut(
+            jd,
+            planet_id,
+            swe.FLG_MOSEPH | swe.FLG_SPEED,
+        )
+        longitude = position[0]
+        positions[name] = {
+            "longitude": longitude,
+            "sign": zodiac_sign(longitude),
+            "degree": longitude % 30,
+            "retrograde": position[3] < 0,
+        }
+
+    lines = []
+    for name, data in positions.items():
+        retro = " (ретроградное движение)" if data["retrograde"] else ""
+        lines.append(
+            f"{name}: {data['sign']} {data['degree']:.2f}°{retro}"
+        )
+
+    aspects = calculate_aspects(positions)
+    aspect_text = "\n".join(aspects) if aspects else "Значимых основных аспектов нет."
+    return (
+        "ПОЛОЖЕНИЯ ПЛАНЕТ НА 12:00 ПО ВРЕМЕНИ КАЗАХСТАНА:\n"
+        + "\n".join(lines)
+        + "\n\nАСПЕКТЫ МЕЖДУ ТРАНЗИТНЫМИ ПЛАНЕТАМИ:\n"
+        + aspect_text
+    )
+
+
 async def vibes_po_znaku(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
     znak = query.data.split("znak:", 1)[1]
-    today = datetime.now().strftime("%d.%m.%Y")
+    user_id = query.from_user.id
+    now = datetime.now(ZoneInfo("Asia/Almaty"))
+    today = now.strftime("%d.%m.%Y")
 
     await query.message.reply_text(
-        f"Смотрю звезды для {znak}... ✨"
+        f"Подбираю для тебя новый гороскоп для знака {znak}... ✨"
     )
 
-    prompt = f"""
-Сделай уникальный гороскоп на сегодня {today}
-для знака {znak}.
+    try:
+        previous_horoscopes = get_user_horoscopes(user_id, znak)
+        transit_text = calculate_daily_transits(now.date())
 
-Стиль: тёплый, живой, интересный.
+        themes = [
+            "личные границы, уверенность и умение выбирать себя",
+            "общение, отношения и важные разговоры",
+            "деньги, практические решения и рабочие задачи",
+            "эмоциональное состояние, отдых и восстановление сил",
+            "новые идеи, инициативы и неожиданные возможности",
+            "дом, близкие люди и ощущение внутренней опоры",
+            "самореализация, планы и движение к своим целям",
+            "баланс между желаниями, обязанностями и ресурсами",
+        ]
 
-Блоки:
+        # Несколько попыток нужны, чтобы не отправить человеку похожий текст.
+        answer = None
+        for attempt in range(4):
+            theme = random.choice(themes)
+            previous_block = "\n\n".join(
+                f"Вариант {index + 1}:\n{text[:1800]}"
+                for index, text in enumerate(previous_horoscopes[:6])
+            )
+            if not previous_block:
+                previous_block = "У этого пользователя ещё не было выданных гороскопов для данного знака."
+
+            prompt = f"""
+Составь свежий, живой и содержательный гороскоп на сегодня {today}
+для солнечного знака {znak}.
+
+РЕАЛЬНЫЕ АСТРОЛОГИЧЕСКИЕ ДАННЫЕ НА СЕГОДНЯ:
+{transit_text}
+
+Главный акцент именно этого выпуска: {theme}.
+
+Обязательные блоки:
 1. Твой вайб сегодня — 2-3 предложения.
-2. Любовь.
+2. Любовь и отношения.
 3. Деньги и работа.
 4. Совет дня.
 
-Не придумывай конкретные транзиты.
-Не используй банальные фразы.
+ВАЖНО: ниже приведены предыдущие гороскопы, которые уже получил ЭТОТ
+пользователь для этого знака. Новый текст не должен повторять их формулировки,
+советы, ситуации, выводы или общий сценарий. Выбери другой угол трактовки
+транзитов и совершенно новые конкретные рекомендации. Не пересказывай
+предыдущие варианты другими словами.
+
+ПРЕДЫДУЩИЕ ВЫДАННЫЕ ВАРИАНТЫ:
+{previous_block}
+
+Пиши естественно, без банальных фраз и длинного вступления.
+Используй переданные положения и аспекты, не выдумывай другие.
+Это общий прогноз по солнечному знаку, а не персональный разбор натальной карты.
+Не обещай гарантированных событий и не запугивай.
 """
 
-    try:
-        answer = await ask_ai(prompt)
+            candidate = await ask_ai(prompt)
+            if not is_horoscope_repeated(candidate, previous_horoscopes):
+                answer = candidate
+                break
+
+        if answer is None:
+            await query.message.reply_text(
+                "Не хочу отправлять тебе похожий прогноз. Попробуй нажать ещё раз чуть позже ✨",
+                reply_markup=KLAVIATURA,
+            )
+            return
+
+        save_user_horoscope(user_id, znak, answer)
         await send_long_message(
             query.message,
-            answer,
+            f"🔮 Гороскоп для {znak} на {today}\n\n{answer}",
             KLAVIATURA,
         )
     except Exception:
         logger.exception("Ошибка гороскопа")
         await query.message.reply_text(
-            "Ой, звезды немного капризничают. Попробуй ещё раз ✨"
+            "Ой, звёзды немного капризничают. Попробуй ещё раз ✨",
+            reply_markup=KLAVIATURA,
         )
 
 
