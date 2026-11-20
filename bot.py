@@ -1,4 +1,3 @@
-
 import os
 import re
 import asyncio
@@ -20,7 +19,7 @@ from telegram import (
     Update,
     ReplyKeyboardMarkup,
     InlineKeyboardButton,
-    InlineKeyboardMarkup
+    InlineKeyboardMarkup,
 )
 
 from telegram.ext import (
@@ -29,7 +28,7 @@ from telegram.ext import (
     MessageHandler,
     CallbackQueryHandler,
     ContextTypes,
-    filters
+    filters,
 )
 
 
@@ -37,8 +36,8 @@ from telegram.ext import (
 # НАСТРОЙКИ
 # =====================================================
 
-TOKEN_TELEGRAM = os.environ.get("TOKEN")
-KEY_GROQ = os.environ.get("GROQ_API_KEY")
+TOKEN_TELEGRAM = (os.environ.get("TOKEN") or "").strip()
+KEY_GROQ = (os.environ.get("GROQ_API_KEY") or "").strip()
 
 if not TOKEN_TELEGRAM:
     raise RuntimeError("Не задан TOKEN Telegram")
@@ -46,18 +45,24 @@ if not TOKEN_TELEGRAM:
 if not KEY_GROQ:
     raise RuntimeError("Не задан GROQ_API_KEY")
 
+# Проверяем формат токена, не выводя сам секрет в логи
+if not re.fullmatch(r"\d+:[A-Za-z0-9_-]+", TOKEN_TELEGRAM):
+    raise RuntimeError(
+        "TOKEN имеет неверный формат. Получи новый токен у @BotFather "
+        "и вставь его в Render → Environment → TOKEN."
+    )
+
 client = AsyncOpenAI(
     api_key=KEY_GROQ,
-    base_url="https://api.groq.com/openai/v1"
+    base_url="https://api.groq.com/openai/v1",
 )
 
 MODEL = "openai/gpt-oss-120b"
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
+    level=logging.INFO,
 )
-
 logger = logging.getLogger(__name__)
 
 
@@ -75,11 +80,10 @@ def home():
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
-
     app_flask.run(
         host="0.0.0.0",
         port=port,
-        use_reloader=False
+        use_reloader=False,
     )
 
 
@@ -91,31 +95,26 @@ ZNAKI = [
     "♈ Овен", "♉ Телец", "♊ Близнецы",
     "♋ Рак", "♌ Лев", "♍ Дева",
     "♎ Весы", "♏ Скорпион", "♐ Стрелец",
-    "♑ Козерог", "♒ Водолей", "♓ Рыбы"
+    "♑ Козерог", "♒ Водолей", "♓ Рыбы",
 ]
 
 KLAVIATURA = ReplyKeyboardMarkup(
     [
         ["✨ Разбор", "❤️ Совместимость"],
         ["🌙 Прогноз на месяц", "🃏 Карта дня"],
-        ["🔮 Гороскоп на сегодня", "💫 Поддержать"]
+        ["🔮 Гороскоп на сегодня", "💫 Поддержать"],
     ],
-    resize_keyboard=True
+    resize_keyboard=True,
 )
 
 
 def klaviatura_znakov():
     buttons = []
-
     for i in range(0, 12, 3):
         buttons.append([
-            InlineKeyboardButton(
-                z,
-                callback_data=f"znak:{z}"
-            )
+            InlineKeyboardButton(z, callback_data=f"znak:{z}")
             for z in ZNAKI[i:i + 3]
         ])
-
     return InlineKeyboardMarkup(buttons)
 
 
@@ -156,7 +155,7 @@ SYSTEM_PROMPT = """
 SIGNS = [
     "Овен", "Телец", "Близнецы", "Рак",
     "Лев", "Дева", "Весы", "Скорпион",
-    "Стрелец", "Козерог", "Водолей", "Рыбы"
+    "Стрелец", "Козерог", "Водолей", "Рыбы",
 ]
 
 
@@ -169,42 +168,145 @@ def zodiac_sign(longitude):
 # ГЕОГРАФИЯ И ЧАСОВЫЕ ПОЯСА
 # =====================================================
 
-geolocator = Nominatim(
-    user_agent="astro_vibe_ovna_bot"
-)
-
+geolocator = Nominatim(user_agent="astro_vibe_ovna_bot")
 tf = TimezoneFinder()
-
 city_cache = {}
+
+# Для городов Казахстана используем проверенные координаты
+# и часовой пояс. С 1 марта 2024 года в Казахстане действует UTC+5.
+KNOWN_CITIES = {
+    "павлодар": (52.2873, 76.9674, "Asia/Almaty"),
+    "pavlodar": (52.2873, 76.9674, "Asia/Almaty"),
+    "павлодар казахстан": (52.2873, 76.9674, "Asia/Almaty"),
+    "pavlodar kazakhstan": (52.2873, 76.9674, "Asia/Almaty"),
+
+    "астана": (51.1694, 71.4491, "Asia/Almaty"),
+    "astana": (51.1694, 71.4491, "Asia/Almaty"),
+    "нур-султан": (51.1694, 71.4491, "Asia/Almaty"),
+
+    "алматы": (43.2389, 76.8897, "Asia/Almaty"),
+    "almaty": (43.2389, 76.8897, "Asia/Almaty"),
+
+    "караганда": (49.8060, 73.0850, "Asia/Almaty"),
+    "karaganda": (49.8060, 73.0850, "Asia/Almaty"),
+
+    "семей": (50.4111, 80.2275, "Asia/Almaty"),
+    "semey": (50.4111, 80.2275, "Asia/Almaty"),
+    "семипалатинск": (50.4111, 80.2275, "Asia/Almaty"),
+
+    "шымкент": (42.3417, 69.5901, "Asia/Almaty"),
+    "shymkent": (42.3417, 69.5901, "Asia/Almaty"),
+
+    "атырау": (47.1164, 51.8830, "Asia/Almaty"),
+    "atyrau": (47.1164, 51.8830, "Asia/Almaty"),
+
+    "актобе": (50.2839, 57.1670, "Asia/Almaty"),
+    "aktobe": (50.2839, 57.1670, "Asia/Almaty"),
+
+    "костанай": (53.2144, 63.6246, "Asia/Almaty"),
+    "kostanay": (53.2144, 63.6246, "Asia/Almaty"),
+
+    "кызылорда": (44.8488, 65.4823, "Asia/Almaty"),
+    "kyzylorda": (44.8488, 65.4823, "Asia/Almaty"),
+
+    "уральск": (51.2278, 51.3865, "Asia/Almaty"),
+    "орал": (51.2278, 51.3865, "Asia/Almaty"),
+    "uralsk": (51.2278, 51.3865, "Asia/Almaty"),
+
+    "актау": (43.6532, 51.1975, "Asia/Almaty"),
+    "aktau": (43.6532, 51.1975, "Asia/Almaty"),
+
+    "петропавловск": (54.8732, 69.1505, "Asia/Almaty"),
+    "petropavl": (54.8732, 69.1505, "Asia/Almaty"),
+
+    "усть-каменогорск": (49.9483, 82.6275, "Asia/Almaty"),
+    "оскемен": (49.9483, 82.6275, "Asia/Almaty"),
+    "oskemen": (49.9483, 82.6275, "Asia/Almaty"),
+
+    "талдыкорган": (45.0156, 78.3739, "Asia/Almaty"),
+    "taldykorgan": (45.0156, 78.3739, "Asia/Almaty"),
+
+    "туркестан": (43.2973, 68.2518, "Asia/Almaty"),
+    "turkistan": (43.2973, 68.2518, "Asia/Almaty"),
+}
+
+
+def normalize_city_name(city):
+    value = city.strip().lower()
+    value = re.sub(r"\s+", " ", value)
+    value = value.replace("республика казахстан", "")
+    value = value.replace("казахстан", "")
+    value = value.replace("kazakhstan", "")
+    value = value.replace("қазақстан", "")
+    value = value.strip(" ,.-")
+    return value
 
 
 async def get_city_data(city):
     """
-    Автоматически определяет координаты города
-    и его часовой пояс.
+    Определяет координаты и часовой пояс города.
+    Сначала использует локальную базу городов Казахстана,
+    затем выполняет поиск через Nominatim.
     """
 
     city = city.strip()
+    normalized = normalize_city_name(city)
 
-    if city in city_cache:
-        return city_cache[city]
+    if normalized in city_cache:
+        return city_cache[normalized]
 
     try:
-        location = await asyncio.to_thread(
-            geolocator.geocode,
+        # 1. Проверяем локальную базу
+        if normalized in KNOWN_CITIES:
+            latitude, longitude, tz_name = KNOWN_CITIES[normalized]
+
+            result = {
+                "latitude": latitude,
+                "longitude": longitude,
+                "timezone": tz_name,
+                "city": city,
+            }
+
+            city_cache[normalized] = result
+            return result
+
+        # 2. Если города нет в базе — ищем в интернете
+        search_queries = [
             city,
-            language="ru",
-            timeout=15
-        )
+            f"{city}, Казахстан",
+            f"{city}, Kazakhstan",
+        ]
+
+        location = None
+
+        for search_query in search_queries:
+            for language in ("ru", None):
+                try:
+                    kwargs = {"timeout": 20}
+                    if language:
+                        kwargs["language"] = language
+
+                    location = await asyncio.to_thread(
+                        geolocator.geocode,
+                        search_query,
+                        **kwargs,
+                    )
+
+                    if location:
+                        break
+
+                except Exception as error:
+                    logger.warning(
+                        "Не удалось найти город '%s': %s",
+                        search_query,
+                        error,
+                    )
+
+            if location:
+                break
 
         if not location:
-            location = await asyncio.to_thread(
-                geolocator.geocode,
-                city,
-                timeout=15
-            )
-
-        if not location:
+            logger.warning("Город не найден: %s", city)
             return None
 
         latitude = location.latitude
@@ -212,7 +314,7 @@ async def get_city_data(city):
 
         tz_name = tf.timezone_at(
             lng=longitude,
-            lat=latitude
+            lat=latitude,
         )
 
         if not tz_name:
@@ -222,47 +324,40 @@ async def get_city_data(city):
             "latitude": latitude,
             "longitude": longitude,
             "timezone": tz_name,
-            "city": location.address
+            "city": location.address,
         }
 
-        city_cache[city] = result
-
+        city_cache[normalized] = result
         return result
 
-    except Exception as e:
-        logger.exception("Ошибка определения города: %s", e)
+    except Exception:
+        logger.exception("Ошибка определения города")
         return None
 
 
 # =====================================================
-# ПЕРЕВОД ВРЕМЕНИ В UTC
+# ПЕРЕВОД МЕСТНОГО ВРЕМЕНИ В UTC
 # =====================================================
 
 def local_to_julian(day, month, year, hour, minute, tz_name):
-
     local_time = datetime(
-        year, month, day,
-        hour, minute
-    ).replace(
-        tzinfo=ZoneInfo(tz_name)
-    )
+        year, month, day, hour, minute
+    ).replace(tzinfo=ZoneInfo(tz_name))
 
     utc_time = local_time.astimezone(timezone.utc)
 
     decimal_hour = (
-        utc_time.hour +
-        utc_time.minute / 60 +
-        utc_time.second / 3600
+        utc_time.hour
+        + utc_time.minute / 60
+        + utc_time.second / 3600
     )
 
-    jd = swe.julday(
+    return swe.julday(
         utc_time.year,
         utc_time.month,
         utc_time.day,
-        decimal_hour
+        decimal_hour,
     )
-
-    return jd
 
 
 # =====================================================
@@ -279,47 +374,38 @@ PLANETS = {
     "Сатурн": swe.SATURN,
     "Уран": swe.URANUS,
     "Нептун": swe.NEPTUNE,
-    "Плутон": swe.PLUTO
+    "Плутон": swe.PLUTO,
 }
-
 
 ASPECTS = {
     "соединение": (0, 8),
     "секстиль": (60, 5),
     "квадрат": (90, 7),
     "трин": (120, 7),
-    "оппозиция": (180, 8)
+    "оппозиция": (180, 8),
 }
 
 
 def calculate_aspects(positions):
-
     result = []
-
     names = list(positions.keys())
 
     for i in range(len(names)):
-
         for j in range(i + 1, len(names)):
-
             p1 = names[i]
             p2 = names[j]
 
             angle = abs(
-                positions[p1]["longitude"] -
-                positions[p2]["longitude"]
+                positions[p1]["longitude"]
+                - positions[p2]["longitude"]
             )
-
             angle = min(angle, 360 - angle)
 
             for aspect_name, values in ASPECTS.items():
-
                 exact_angle, orb_limit = values
-
                 orb = abs(angle - exact_angle)
 
                 if orb <= orb_limit:
-
                     result.append(
                         f"{p1} — {aspect_name} — {p2} "
                         f"(орбис {orb:.1f}°)"
@@ -329,21 +415,22 @@ def calculate_aspects(positions):
 
 
 def calculate_chart(day, month, year, hour, minute, city_data):
-
     jd = local_to_julian(
-        day, month, year,
-        hour, minute,
-        city_data["timezone"]
+        day,
+        month,
+        year,
+        hour,
+        minute,
+        city_data["timezone"],
     )
 
     positions = {}
 
     for name, planet_id in PLANETS.items():
-
         position, ret = swe.calc_ut(
             jd,
             planet_id,
-            swe.FLG_MOSEPH | swe.FLG_SPEED
+            swe.FLG_MOSEPH | swe.FLG_SPEED,
         )
 
         longitude = position[0]
@@ -353,10 +440,8 @@ def calculate_chart(day, month, year, hour, minute, city_data):
             "longitude": longitude,
             "sign": zodiac_sign(longitude),
             "degree": longitude % 30,
-            "retrograde": speed < 0
+            "retrograde": speed < 0,
         }
-
-    # Асцендент и MC
 
     latitude = city_data["latitude"]
     longitude = city_data["longitude"]
@@ -366,35 +451,26 @@ def calculate_chart(day, month, year, hour, minute, city_data):
             jd,
             latitude,
             longitude,
-            b'P'
+            b'P',
         )
-
     except Exception:
-
-        # Если система Плацидуса не рассчитывается,
-        # используем систему целых знаков для углов
         cusps, ascmc = swe.houses_ex(
             jd,
             latitude,
             longitude,
-            b'W'
+            b'W',
         )
 
     asc_longitude = ascmc[0]
     mc_longitude = ascmc[1]
 
-    ascendant = zodiac_sign(asc_longitude)
-    mc = zodiac_sign(mc_longitude)
-
-    aspects = calculate_aspects(positions)
-
     return {
         "positions": positions,
-        "ascendant": ascendant,
-        "mc": mc,
-        "aspects": aspects,
+        "ascendant": zodiac_sign(asc_longitude),
+        "mc": zodiac_sign(mc_longitude),
+        "aspects": calculate_aspects(positions),
         "city": city_data["city"],
-        "timezone": city_data["timezone"]
+        "timezone": city_data["timezone"],
     }
 
 
@@ -403,33 +479,26 @@ def calculate_chart(day, month, year, hour, minute, city_data):
 # =====================================================
 
 def format_chart(chart):
-
-    lines = []
-
-    lines.append("НАТАЛЬНАЯ КАРТА")
-    lines.append("")
-    lines.append(f"Асцендент: {chart['ascendant']}")
-    lines.append(f"MC: {chart['mc']}")
-    lines.append("")
+    lines = [
+        "НАТАЛЬНАЯ КАРТА",
+        "",
+        f"Асцендент: {chart['ascendant']}",
+        f"MC: {chart['mc']}",
+        "",
+    ]
 
     for name, data in chart["positions"].items():
-
         retro = " R (ретроградная)" if data["retrograde"] else ""
-
         lines.append(
             f"{name}: {data['sign']} "
             f"{data['degree']:.2f}°{retro}"
         )
 
-    lines.append("")
-    lines.append("АСПЕКТЫ")
+    lines.extend(["", "АСПЕКТЫ"])
 
     if chart["aspects"]:
-
         lines.extend(chart["aspects"])
-
     else:
-
         lines.append("Основные аспекты не обнаружены.")
 
     return "\n".join(lines)
@@ -440,7 +509,6 @@ def format_chart(chart):
 # =====================================================
 
 def parse_birth_data(text):
-
     pattern = (
         r"(\d{1,2})[./-](\d{1,2})[./-](\d{4})"
         r"\s*[,; ]+\s*(\d{1,2}):(\d{2})"
@@ -453,16 +521,13 @@ def parse_birth_data(text):
         return None
 
     day, month, year, hour, minute = map(
-        int, match.groups()[:5]
+        int,
+        match.groups()[:5],
     )
-
     city = match.group(6).strip()
 
     try:
-        datetime(
-            year, month, day,
-            hour, minute
-        )
+        datetime(year, month, day, hour, minute)
     except ValueError:
         return None
 
@@ -475,7 +540,7 @@ def parse_birth_data(text):
         "year": year,
         "hour": hour,
         "minute": minute,
-        "city": city
+        "city": city,
     }
 
 
@@ -484,46 +549,31 @@ def parse_birth_data(text):
 # =====================================================
 
 async def ask_ai(prompt):
-
     response = await client.chat.completions.create(
         model=MODEL,
         messages=[
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
         ],
         temperature=0.8,
-        max_tokens=3500
+        max_tokens=3500,
     )
 
-    return response.choices[0].message.content
+    return response.choices[0].message.content or "Не удалось сформировать ответ."
 
 
 async def send_long_message(message, text, reply_markup=None):
-
     max_length = 3900
-
     chunks = [
         text[i:i + max_length]
         for i in range(0, len(text), max_length)
     ]
 
     for index, chunk in enumerate(chunks):
-
-        markup = (
-            reply_markup
-            if index == len(chunks) - 1
-            else None
-        )
-
+        markup = reply_markup if index == len(chunks) - 1 else None
         await message.reply_text(
             chunk,
-            reply_markup=markup
+            reply_markup=markup,
         )
 
 
@@ -532,7 +582,6 @@ async def send_long_message(message, text, reply_markup=None):
 # =====================================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     context.user_data.clear()
 
     await update.message.reply_text(
@@ -543,22 +592,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Выбирай интересующий тебя раздел ниже.\n\n"
         "Для натальной карты отправь:\n"
         "15.05.2002, 14:30, Павлодар",
-        reply_markup=KLAVIATURA
+        reply_markup=KLAVIATURA,
     )
 
 
 # =====================================================
-# ГОРоскоп ПО ЗНАКУ
+# ГОРОСКОП ПО ЗНАКУ
 # =====================================================
 
 async def vibes_po_znaku(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     query = update.callback_query
-
     await query.answer()
 
     znak = query.data.split("znak:", 1)[1]
-
     today = datetime.now().strftime("%d.%m.%Y")
 
     await query.message.reply_text(
@@ -566,38 +612,32 @@ async def vibes_po_znaku(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     prompt = f"""
-    Сделай уникальный гороскоп на сегодня {today}
-    для знака {znak}.
+Сделай уникальный гороскоп на сегодня {today}
+для знака {znak}.
 
-    Стиль: тёплый, живой, интересный.
+Стиль: тёплый, живой, интересный.
 
-    Блоки:
-    1. Твой вайб сегодня — 2-3 предложения.
-    2. Любовь.
-    3. Деньги и работа.
-    4. Совет дня.
+Блоки:
+1. Твой вайб сегодня — 2-3 предложения.
+2. Любовь.
+3. Деньги и работа.
+4. Совет дня.
 
-    Не придумывай конкретные транзиты.
-    Не используй банальные фразы.
-    """
+Не придумывай конкретные транзиты.
+Не используй банальные фразы.
+"""
 
     try:
-
         answer = await ask_ai(prompt)
-
         await send_long_message(
             query.message,
             answer,
-            KLAVIATURA
+            KLAVIATURA,
         )
-
     except Exception:
-
         logger.exception("Ошибка гороскопа")
-
         await query.message.reply_text(
-            "Ой, звезды немного капризничают. "
-            "Попробуй ещё раз ✨"
+            "Ой, звезды немного капризничают. Попробуй ещё раз ✨"
         )
 
 
@@ -606,88 +646,65 @@ async def vibes_po_znaku(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =====================================================
 
 async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     text = update.message.text.strip()
-
     mode = context.user_data.get("rezhim")
 
     # ПОДДЕРЖКА
-
     if text == "💫 Поддержать":
-
         await update.message.reply_text(
             "Спасибо, что ты со мной! 💫✨\n\n"
             "Поддержать Astro Vibe Ovna можно здесь:\n"
             "https://t.me/tribute/app?startapp=dUt9\n\n"
             "Каждая звёздочка помогает проекту расти! 💖",
-            reply_markup=KLAVIATURA
+            reply_markup=KLAVIATURA,
         )
-
         return
 
     # ГОРОСКОП
-
     if text == "🔮 Гороскоп на сегодня":
-
         context.user_data.clear()
-
         await update.message.reply_text(
             "Выбери свой знак ✨",
-            reply_markup=klaviatura_znakov()
+            reply_markup=klaviatura_znakov(),
         )
-
         return
 
     # НАТАЛЬНАЯ КАРТА
-
     if text == "✨ Разбор":
-
         context.user_data.clear()
         context.user_data["rezhim"] = "razbor"
-
         await update.message.reply_text(
             "Давай смотреть твою натальную карту ✨\n\n"
             "Напиши дату, время и город рождения.\n\n"
             "Например:\n"
             "15.05.2002, 14:30, Павлодар"
         )
-
         return
 
     # СОВМЕСТИМОСТЬ
-
     if text == "❤️ Совместимость":
-
         context.user_data.clear()
         context.user_data["rezhim"] = "sovmestimost"
-
         await update.message.reply_text(
             "Давай посмотрим вашу совместимость ❤️\n\n"
             "Сначала отправь данные первого человека:\n"
             "15.05.2002, 14:30, Павлодар"
         )
-
         return
 
     # ПРОГНОЗ
-
     if text == "🌙 Прогноз на месяц":
-
         context.user_data.clear()
         context.user_data["rezhim"] = "prognoz"
-
         await update.message.reply_text(
             "Напиши дату, точное время и город рождения.\n\n"
             "Например:\n"
             "15.05.2002, 14:30, Павлодар"
         )
-
         return
 
     # КАРТА ДНЯ
-
     if text == "🃏 Карта дня":
-
         context.user_data.clear()
 
         cards = [
@@ -704,68 +721,56 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ("Звезда", "Надежда, вдохновение, вера."),
             ("Луна", "Интуиция, эмоции, неопределённость."),
             ("Солнце", "Радость, ясность, успех."),
-            ("Мир", "Завершение, результат, целостность.")
+            ("Мир", "Завершение, результат, целостность."),
         ]
 
         card, meaning = random.choice(cards)
 
         prompt = f"""
-        Карта Таро дня: {card}.
-        Основное значение: {meaning}.
+Карта Таро дня: {card}.
+Основное значение: {meaning}.
 
-        Сделай тёплое и интересное послание дня.
-        Добавь:
-        1. Главную тему дня.
-        2. Совет.
-        3. На что обратить внимание.
+Сделай тёплое и интересное послание дня.
+Добавь:
+1. Главную тему дня.
+2. Совет.
+3. На что обратить внимание.
 
-        Не обещай гарантированных событий.
-        """
+Не обещай гарантированных событий.
+"""
 
         try:
-
             answer = await ask_ai(prompt)
-
             await send_long_message(
                 update.message,
                 f"🃏 Твоя карта дня — {card}\n\n{answer}",
-                KLAVIATURA
+                KLAVIATURA,
             )
-
         except Exception:
-
             logger.exception("Ошибка карты дня")
-
             await update.message.reply_text(
                 f"Твоя карта дня — {card} ✨\n\n{meaning}",
-                reply_markup=KLAVIATURA
+                reply_markup=KLAVIATURA,
             )
-
         return
 
     # ЕСЛИ НЕТ РЕЖИМА
-
     if not mode:
-
         await update.message.reply_text(
             "Выбери нужный раздел в меню ✨",
-            reply_markup=KLAVIATURA
+            reply_markup=KLAVIATURA,
         )
-
         return
 
     # ПРОВЕРКА ДАННЫХ
-
     birth = parse_birth_data(text)
 
     if not birth:
-
         await update.message.reply_text(
             "Не совсем поняла данные 🙈\n\n"
             "Напиши в формате:\n"
             "15.05.2002, 14:30, Павлодар"
         )
-
         return
 
     await update.message.reply_text(
@@ -776,175 +781,137 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     city_data = await get_city_data(birth["city"])
 
     if not city_data:
-
         await update.message.reply_text(
             "Не получилось определить город 😔\n\n"
             "Попробуй указать город вместе со страной.\n"
             "Например: Павлодар, Казахстан"
         )
-
         return
 
     try:
-
         chart = calculate_chart(
             birth["day"],
             birth["month"],
             birth["year"],
             birth["hour"],
             birth["minute"],
-            city_data
+            city_data,
         )
-
     except Exception:
-
         logger.exception("Ошибка расчёта карты")
-
         await update.message.reply_text(
-            "Не удалось рассчитать карту. "
-            "Проверь дату, время и город рождения."
+            "Не удалось рассчитать карту. Проверь дату, время и город рождения."
         )
-
         return
 
     chart_text = format_chart(chart)
 
     # НАТАЛЬНАЯ КАРТА
-
     if mode == "razbor":
-
         prompt = f"""
-        Сделай базовый, но содержательный разбор натальной карты.
+Сделай базовый, но содержательный разбор натальной карты.
 
-        Данные:
-        {chart_text}
+Данные:
+{chart_text}
 
-        Город: {chart['city']}.
+Город: {chart['city']}.
 
-        Разделы:
+Разделы:
+1. Общий портрет личности.
+2. Солнце — характер и самореализация.
+3. Луна — эмоции и внутренние потребности.
+4. Асцендент — первое впечатление и поведение.
+5. Меркурий — мышление и общение.
+6. Венера — любовь и симпатии.
+7. Марс — энергия и действия.
+8. Юпитер и Сатурн — развитие и ответственность.
+9. Уран, Нептун и Плутон — дополнительные особенности.
+10. Сильные стороны и зоны развития.
 
-        1. Общий портрет личности.
-        2. Солнце — характер и самореализация.
-        3. Луна — эмоции и внутренние потребности.
-        4. Асцендент — первое впечатление и поведение.
-        5. Меркурий — мышление и общение.
-        6. Венера — любовь и симпатии.
-        7. Марс — энергия и действия.
-        8. Юпитер и Сатурн — развитие и ответственность.
-        9. Уран, Нептун и Плутон — дополнительные особенности.
-        10. Сильные стороны и зоны развития.
-
-        Учитывай только переданные положения и аспекты.
-        Не выдумывай дома и управителей.
-        Сделай красивый синтез карты.
-        """
-
+Учитывай только переданные положения и аспекты.
+Не выдумывай дома и управителей.
+Сделай красивый синтез карты.
+"""
         context.user_data.pop("rezhim", None)
 
         try:
-
             answer = await ask_ai(prompt)
-
             await send_long_message(
                 update.message,
                 answer,
-                KLAVIATURA
+                KLAVIATURA,
             )
-
         except Exception:
-
             logger.exception("Ошибка разбора")
-
             await update.message.reply_text(
-                "Не удалось получить интерпретацию. "
-                "Попробуй немного позже ✨",
-                reply_markup=KLAVIATURA
+                "Не удалось получить интерпретацию. Попробуй немного позже ✨",
+                reply_markup=KLAVIATURA,
             )
-
         return
 
     # СОВМЕСТИМОСТЬ
-
     if mode == "sovmestimost":
-
         if "partner1" not in context.user_data:
-
             context.user_data["partner1"] = {
                 "birth": birth,
-                "chart": chart
+                "chart": chart,
             }
-
             await update.message.reply_text(
                 "Первую карту рассчитала! ✨\n\n"
                 "Теперь отправь данные второго человека:\n"
                 "21.11.1999, 12:00, Павлодар"
             )
-
             return
 
         partner1 = context.user_data["partner1"]
-
         chart1 = format_chart(partner1["chart"])
         chart2 = chart_text
 
         prompt = f"""
-        Сделай астрологический разбор совместимости пары.
+Сделай астрологический разбор совместимости пары.
 
-        ПЕРВЫЙ ЧЕЛОВЕК:
-        {chart1}
+ПЕРВЫЙ ЧЕЛОВЕК:
+{chart1}
 
-        ВТОРОЙ ЧЕЛОВЕК:
-        {chart2}
+ВТОРОЙ ЧЕЛОВЕК:
+{chart2}
 
-        Разбери:
+Разбери:
+1. Общее притяжение.
+2. Эмоциональная совместимость — Луна.
+3. Любовь и симпатия — Венера.
+4. Страсть и конфликты — Марс.
+5. Общение — Меркурий.
+6. Сильные стороны пары.
+7. Возможные сложности.
+8. Перспективы отношений.
+9. Практический совет паре.
 
-        1. Общее притяжение.
-        2. Эмоциональная совместимость — Луна.
-        3. Любовь и симпатия — Венера.
-        4. Страсть и конфликты — Марс.
-        5. Общение — Меркурий.
-        6. Сильные стороны пары.
-        7. Возможные сложности.
-        8. Перспективы отношений.
-        9. Практический совет паре.
-
-        Сравни реальные положения планет.
-        Не придумывай аспекты между картами.
-        Не выдумывай проценты совместимости.
-        Пиши тепло и деликатно.
-        """
-
+Сравни реальные положения планет.
+Не придумывай аспекты между картами.
+Не выдумывай проценты совместимости.
+Пиши тепло и деликатно.
+"""
         context.user_data.clear()
 
         try:
-
             answer = await ask_ai(prompt)
-
             await send_long_message(
                 update.message,
                 answer,
-                KLAVIATURA
+                KLAVIATURA,
             )
-
         except Exception:
-
             logger.exception("Ошибка совместимости")
-
             await update.message.reply_text(
-                "Не удалось завершить анализ пары. "
-                "Попробуй ещё раз ✨",
-                reply_markup=KLAVIATURA
+                "Не удалось завершить анализ пары. Попробуй ещё раз ✨",
+                reply_markup=KLAVIATURA,
             )
-
         return
 
     # ПРОГНОЗ НА МЕСЯЦ
-
     if mode == "prognoz":
-
-        now = datetime.now(
-            ZoneInfo(city_data["timezone"])
-        )
+        now = datetime.now(ZoneInfo(city_data["timezone"]))
 
         transit_chart = calculate_chart(
             now.day,
@@ -952,60 +919,51 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             now.year,
             now.hour,
             now.minute,
-            city_data
+            city_data,
         )
 
         transit_text = format_chart(transit_chart)
 
         prompt = f"""
-        Сделай астрологический прогноз на ближайший месяц.
+Сделай астрологический прогноз на ближайший месяц.
 
-        НАТАЛЬНЫЕ ПОЛОЖЕНИЯ:
-        {chart_text}
+НАТАЛЬНЫЕ ПОЛОЖЕНИЯ:
+{chart_text}
 
-        ТЕКУЩИЕ ТРАНЗИТНЫЕ ПОЛОЖЕНИЯ:
-        {transit_text}
+ТЕКУЩИЕ ТРАНЗИТНЫЕ ПОЛОЖЕНИЯ:
+{transit_text}
 
-        Дата расчёта: {now.strftime('%d.%m.%Y')}.
+Дата расчёта: {now.strftime('%d.%m.%Y')}.
 
-        Разделы:
+Разделы:
+1. Главная тема месяца.
+2. Любовь и отношения.
+3. Деньги.
+4. Работа и самореализация.
+5. Эмоциональное состояние.
+6. Три совета астролога.
 
-        1. Главная тема месяца.
-        2. Любовь и отношения.
-        3. Деньги.
-        4. Работа и самореализация.
-        5. Эмоциональное состояние.
-        6. Три совета астролога.
-
-        Важно:
-        Не утверждай, что транзитные аспекты уже рассчитаны.
-        Сравни положения натальных и транзитных планет.
-        Не придумывай даты точных аспектов.
-        Не выдавай прогноз за гарантированное событие.
-        """
-
+Важно:
+Не утверждай, что транзитные аспекты уже рассчитаны.
+Сравни положения натальных и транзитных планет.
+Не придумывай даты точных аспектов.
+Не выдавай прогноз за гарантированное событие.
+"""
         context.user_data.clear()
 
         try:
-
             answer = await ask_ai(prompt)
-
             await send_long_message(
                 update.message,
                 answer,
-                KLAVIATURA
+                KLAVIATURA,
             )
-
         except Exception:
-
             logger.exception("Ошибка прогноза")
-
             await update.message.reply_text(
-                "Не получилось составить прогноз. "
-                "Попробуй немного позже ✨",
-                reply_markup=KLAVIATURA
+                "Не получилось составить прогноз. Попробуй немного позже ✨",
+                reply_markup=KLAVIATURA,
             )
-
         return
 
 
@@ -1014,10 +972,9 @@ async def otvet(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =====================================================
 
 def main():
-
     threading.Thread(
         target=run_flask,
-        daemon=True
+        daemon=True,
     ).start()
 
     application = (
@@ -1033,19 +990,18 @@ def main():
     application.add_handler(
         CallbackQueryHandler(
             vibes_po_znaku,
-            pattern="^znak:"
+            pattern="^znak:",
         )
     )
 
     application.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND,
-            otvet
+            otvet,
         )
     )
 
     logger.info("Astro Vibe Ovna запущена!")
-
     application.run_polling()
 
 
